@@ -6,21 +6,10 @@ import jax.numpy as np
 import tensorflow_datasets as tfds
 from jax import grad, jit, random, vmap
 
-Array = np.ndarray
-
 from data import MNIST
+from nn_utils import init_network_params
 
-
-def random_layer_params(m: int, n: int, key: Array, scale: float = 1e-2) -> Array:
-    w_key, b_key = random.split(key)
-    return scale * random.normal(w_key, (n, m)), scale * random.normal(b_key, (n,))
-
-
-def init_network_params(sizes: Iterable[int], key: Array) -> List[Array]:
-    keys = random.split(key, num=len(sizes))
-    return [
-        random_layer_params(m, n, k) for m, n, k in zip(sizes[:-1], sizes[1:], keys)
-    ]
+Array = np.ndarray
 
 
 def relu(x):
@@ -28,7 +17,7 @@ def relu(x):
 
 
 @jit
-def predict(params: List[Array], image: Array) -> Array:
+def predict(params: List[Tuple[Array]], image: Array) -> Array:
     activations = image
     for w, b in params[:-1]:
         out = np.dot(w, activations) + b
@@ -41,13 +30,13 @@ def predict(params: List[Array], image: Array) -> Array:
 batch_predict = vmap(predict, in_axes=(None, 0))
 
 
-def loss(params: List[Array], images: Array, targets: Array) -> float:
+def loss(params: List[Tuple[Array]], images: Array, targets: Array) -> float:
     preds = batch_predict(params, images)
     return -np.sum(preds * targets)
 
 
 @jit
-def update(params: List[Array], x: Array, y: Array) -> List[Array]:
+def update(params: List[Tuple[Array]], x: Array, y: Array) -> List[Array]:
     grads = grad(loss)(params, x, y)
     return [
         (w - step_size * dw, b - step_size * db)
@@ -55,7 +44,7 @@ def update(params: List[Array], x: Array, y: Array) -> List[Array]:
     ]
 
 
-def accuracy(params: List[Array], images: Array, targets: Array) -> Array:
+def accuracy(params: List[Tuple[Array]], images: Array, targets: Array) -> Array:
     target_class = np.argmax(targets, axis=1)
     preds = batch_predict(params, images)
     predicted_class = np.argmax(preds, axis=1)
