@@ -7,7 +7,7 @@ from jax import random
 Array = np.ndarray
 
 
-def random_layer_params(m: int, n: int, key: Array, scale: float = 1e-2) -> Array:
+def random_layer_params(m: int, n: int, key: Array, scale: float = 1e-1) -> Array:
     w_key, b_key = random.split(key)
     return scale * random.normal(w_key, (n, m)), scale * random.normal(b_key, (n,))
 
