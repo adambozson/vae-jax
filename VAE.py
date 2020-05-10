@@ -1,3 +1,4 @@
+import os
 import time
 from typing import List, Tuple
 
@@ -6,7 +7,7 @@ import jax.numpy as np
 import jax.random as random
 from jax import grad, jit, vmap
 
-from data import MNIST
+from data import MNIST, input_output_figure
 from nn_utils import init_network_params
 
 Array = np.ndarray
@@ -40,9 +41,7 @@ def decode(params: List[Tuple[Array]], z):
         z = relu(z)
 
     w_last, b_last = params[-1]
-    logits = np.dot(w_last, z) + b_last
-
-    return logits - jax.scipy.special.logsumexp(logits)
+    return np.dot(w_last, z) + b_last
 
 
 def bernoulli_llh(logits: Array, x: Array) -> float:
@@ -53,7 +52,7 @@ def gaussian_kl(mu: Array, logvar: Array) -> float:
     return -0.5 * np.sum(1 + logvar - mu ** 2 - np.exp(logvar))
 
 
-def elbo(key, params, images):
+def elbo(key, params, images, return_logits=False):
     enc_params, dec_params = params
     batch_encode = vmap(encode, in_axes=[None, 0])
     batch_decode = vmap(decode, in_axes=[None, 0])
@@ -61,11 +60,16 @@ def elbo(key, params, images):
     mu, logvar = batch_encode(enc_params, images)
     z = sample_z(key, mu, logvar)
     logits = batch_decode(dec_params, z)
-    return bernoulli_llh(logits, images) - gaussian_kl(mu, logvar)
+    elbo = bernoulli_llh(logits, images) - gaussian_kl(mu, logvar)
+
+    if return_logits:
+        return elbo, logits
+    else:
+        return elbo
 
 
 @jit
-def GD_update(key, params, images, step_size=1e-4):
+def SGD_update(key, params, images, step_size=1e-3):
     enc_params, dec_params = params
 
     loss = lambda p: -elbo(key, p, images) / len(images)
@@ -86,7 +90,9 @@ def GD_update(key, params, images, step_size=1e-4):
 def evaluate(key, params, images):
     vae_key, data_key = random.split(key)
     data = random.bernoulli(data_key, images / 255)
-    return elbo(vae_key, params, data) / len(images)
+    sum_elbo, logits = elbo(vae_key, params, data, return_logits=True)
+    mean_image = np.exp(-np.logaddexp(0, -logits))
+    return sum_elbo / len(images), mean_image
 
 
 if __name__ == "__main__":
@@ -104,7 +110,7 @@ if __name__ == "__main__":
     )  # also add a layer for the logvar net
     dec_params = init_network_params(dec_layers, dec_key)
 
-    num_epochs = 50
+    num_epochs = 100
     for epoch in range(num_epochs):
 
         start_time = time.time()
@@ -119,7 +125,13 @@ if __name__ == "__main__":
         print(f"Epoch {epoch+1}: {epoch_time:0.2f} s")
 
         z_key, train_key, test_key = random.split(z_key, 3)
-        train_elbo = evaluate(train_key, (enc_params, dec_params), data.train_images)
+        train_elbo, _ = evaluate(train_key, (enc_params, dec_params), data.train_images)
         print(f"Training set ELBO: {train_elbo}")
-        test_elbo = evaluate(test_key, (enc_params, dec_params), data.test_images)
+        test_elbo, test_outputs = evaluate(
+            test_key, (enc_params, dec_params), data.test_images
+        )
         print(f"Test set ELBO: {test_elbo}")
+
+        n_images = 10
+        path = os.path.join("images", f"{epoch+1}.png")
+        input_output_figure(data.test_images[:n_images], test_outputs[:n_images], path)
