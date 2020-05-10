@@ -30,9 +30,6 @@ def encode(params: List[Tuple[Array]], x: Array) -> Tuple[Array]:
     return mu, logvar
 
 
-batch_encode = vmap(encode, in_axes=[None, 0])
-
-
 def sample_z(key: Array, mu: Array, logvar: Array) -> Array:
     return mu + np.exp(logvar / 2) * random.normal(key, mu.shape)
 
@@ -48,9 +45,6 @@ def decode(params: List[Tuple[Array]], z):
     return logits - jax.scipy.special.logsumexp(logits)
 
 
-batch_decode = vmap(decode, in_axes=[None, 0])
-
-
 def bernoulli_llh(logits: Array, x: Array) -> float:
     return -np.sum(np.logaddexp(0, logits * np.where(x, -1, 1)))
 
@@ -59,34 +53,40 @@ def gaussian_kl(mu: Array, logvar: Array) -> float:
     return -0.5 * np.sum(1 + logvar - mu ** 2 - np.exp(logvar))
 
 
-@jit
-def loss(params, r, images):
+def elbo(key, params, images):
     enc_params, dec_params = params
+    batch_encode = vmap(encode, in_axes=[None, 0])
+    batch_decode = vmap(decode, in_axes=[None, 0])
+
     mu, logvar = batch_encode(enc_params, images)
-    z = mu + np.exp(logvar / 2) * r
+    z = sample_z(key, mu, logvar)
     logits = batch_decode(dec_params, z)
-    sum_loss = -bernoulli_llh(logits, images) + gaussian_kl(mu, logvar)
-    return sum_loss / len(images)
+    return bernoulli_llh(logits, images) - gaussian_kl(mu, logvar)
 
 
 @jit
 def GD_update(key, params, images, step_size=1e-4):
     enc_params, dec_params = params
 
-    latent_dim = enc_params[-1][0].shape[0]
-    r = random.normal(key, (len(images), latent_dim))
-
-    enc_grad, dec_grad = grad(loss)(params, r, images)
+    loss = lambda p: -elbo(key, p, images) / len(images)
+    enc_grad, dec_grad = grad(loss)(params)
 
     enc_params = [
         (w - dw * step_size, b - db * step_size)
         for (w, b), (dw, db) in zip(enc_params, enc_grad)
     ]
-    dec = [
+    dec_params = [
         (w - dw * step_size, b - db * step_size)
         for (w, b), (dw, db) in zip(dec_params, dec_grad)
     ]
     return enc_params, dec_params
+
+
+@jit
+def evaluate(key, params, images):
+    vae_key, data_key = random.split(key)
+    data = random.bernoulli(data_key, images / 255)
+    return elbo(vae_key, params, data) / len(images)
 
 
 if __name__ == "__main__":
@@ -106,6 +106,7 @@ if __name__ == "__main__":
 
     num_epochs = 50
     for epoch in range(num_epochs):
+
         start_time = time.time()
         for images, _ in data.get_batches():
             z_key, vae_key, data_key = random.split(z_key, 3)
@@ -113,5 +114,12 @@ if __name__ == "__main__":
             enc_params, dec_params = GD_update(
                 vae_key, (enc_params, dec_params), binary_images
             )
+
         epoch_time = time.time() - start_time
         print(f"Epoch {epoch+1}: {epoch_time:0.2f} s")
+
+        z_key, train_key, test_key = random.split(z_key, 3)
+        train_elbo = evaluate(train_key, (enc_params, dec_params), data.train_images)
+        print(f"Training set ELBO: {train_elbo}")
+        test_elbo = evaluate(test_key, (enc_params, dec_params), data.test_images)
+        print(f"Test set ELBO: {test_elbo}")

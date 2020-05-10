@@ -10,7 +10,8 @@ Array = np.ndarray
 def one_hot(x: Array, k: int) -> Array:
     return np.array(x[:, None] == np.arange(k))
 
-class MNIST():
+
+class MNIST:
     def __init__(self):
         mnist_data, info = tfds.load(name="mnist", batch_size=-1, with_info=True)
         mnist_data = tfds.as_numpy(mnist_data)
@@ -27,11 +28,13 @@ class MNIST():
         self.train_labels = one_hot(train_labels, self.num_labels)
         print(f"Train: {train_images.shape=}, {train_labels.shape=}")
 
-        test_images, test_labels = mnist_data["test"]["image"], mnist_data["test"]["label"]
+        test_images, test_labels = (
+            mnist_data["test"]["image"],
+            mnist_data["test"]["label"],
+        )
         self.test_images = np.reshape(test_images, (-1, self.num_pixels))
         self.test_labels = one_hot(test_labels, self.num_labels)
         print(f"Test: {test_images.shape=}, {test_labels.shape=}")
-
 
     def get_batches(self, batch_size=128) -> Generator[Tuple[Array], None, None]:
         num_batches = int(np.ceil(len(self.train_images) / batch_size))
@@ -40,4 +43,6 @@ class MNIST():
             end_idx = (i + 1) * batch_size
             if end_idx >= len(self.train_images):
                 end_idx = len(self.train_images) - 1
-            yield self.train_images[start_idx:end_idx, ...], self.train_labels[start_idx:end_idx, ...]
+            yield self.train_images[start_idx:end_idx, ...], self.train_labels[
+                start_idx:end_idx, ...
+            ]
