@@ -1,7 +1,7 @@
-from typing import Generator, Iterable, List, Tuple
+from typing import Generator, List, Tuple
 
-import jax
-import jax.numpy as np
+import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow_datasets as tfds
 
 Array = np.ndarray
@@ -46,3 +46,29 @@ class MNIST:
             yield self.train_images[start_idx:end_idx, ...], self.train_labels[
                 start_idx:end_idx, ...
             ]
+
+
+def make_square(img):
+    return img.reshape((int(np.sqrt(len(img))), -1))
+
+def input_output_figure(in_imgs, out_imgs, path="in_out.png"):
+    in_imgs, out_imgs = np.atleast_2d(in_imgs, out_imgs)
+    assert len(in_imgs) == len(out_imgs)
+    rows = in_imgs.shape[0]
+
+    fig, axes = plt.subplots(rows, 2)
+    axes = np.atleast_2d(axes)
+
+    for i in range(rows):
+        ax = axes[i]
+        # left plot
+        in_img = make_square(in_imgs[i])
+        ax[0].imshow(in_img)
+        ax[0].axis("off")
+        # right plot
+        out_img = make_square(out_imgs[i])
+        ax[1].imshow(out_img)
+        ax[1].axis("off")
+
+    fig.savefig(path)
+    plt.close()
