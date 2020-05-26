@@ -1,16 +1,15 @@
 import os
 import time
-from typing import List, Tuple
 
 import jax
 import jax.numpy as np
 import jax.random as random
 from jax import grad, jit
-from jax.experimental import stax, optimizers
-from jax.experimental.stax import Dense, FanOut, Relu, Softplus
+from jax.experimental import optimizers, stax
+from jax.experimental.stax import Dense, FanOut, Relu
 
-from data import MNIST, input_output_figure
-from VAE import sample_z, gaussian_kl, bernoulli_llh
+from utils.data import MNIST, input_output_figure
+from utils.stats import bernoulli_llh, gaussian_kl, sample_z
 
 Array = np.ndarray
 

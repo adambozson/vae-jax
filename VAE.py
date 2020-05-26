@@ -7,8 +7,9 @@ import jax.numpy as np
 import jax.random as random
 from jax import grad, jit, vmap
 
-from data import MNIST, input_output_figure
-from nn_utils import init_network_params
+from utils.data import MNIST, input_output_figure
+from utils.nn import init_network_params
+from utils.stats import bernoulli_llh, gaussian_kl, sample_z
 
 Array = np.ndarray
 
@@ -31,10 +32,6 @@ def encode(params: List[Tuple[Array]], x: Array) -> Tuple[Array]:
     return mu, logvar
 
 
-def sample_z(key: Array, mu: Array, logvar: Array) -> Array:
-    return mu + np.exp(logvar / 2) * random.normal(key, mu.shape)
-
-
 def decode(params: List[Tuple[Array]], z: Array) -> Array:
     for w, b in params[:-1]:
         z = np.dot(w, z) + b
@@ -42,14 +39,6 @@ def decode(params: List[Tuple[Array]], z: Array) -> Array:
 
     w_last, b_last = params[-1]
     return np.dot(w_last, z) + b_last
-
-
-def bernoulli_llh(logits: Array, x: Array) -> float:
-    return -np.sum(np.logaddexp(0, logits * np.where(x, -1, 1)))
-
-
-def gaussian_kl(mu: Array, logvar: Array) -> float:
-    return -0.5 * np.sum(1 + logvar - mu ** 2 - np.exp(logvar))
 
 
 def elbo(key, params, images, return_logits=False):
