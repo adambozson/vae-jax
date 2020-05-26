@@ -13,7 +13,7 @@ from nn_utils import init_network_params
 Array = np.ndarray
 
 
-def relu(x):
+def relu(x: Array) -> Array:
     return np.maximum(0, x)
 
 
@@ -35,7 +35,7 @@ def sample_z(key: Array, mu: Array, logvar: Array) -> Array:
     return mu + np.exp(logvar / 2) * random.normal(key, mu.shape)
 
 
-def decode(params: List[Tuple[Array]], z):
+def decode(params: List[Tuple[Array]], z: Array) -> Array:
     for w, b in params[:-1]:
         z = np.dot(w, z) + b
         z = relu(z)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         for images, _ in data.get_batches():
             z_key, vae_key, data_key = random.split(z_key, 3)
             binary_images = random.bernoulli(data_key, images / 255)
-            enc_params, dec_params = GD_update(
+            enc_params, dec_params = SGD_update(
                 vae_key, (enc_params, dec_params), binary_images
             )
 
@@ -133,5 +133,10 @@ if __name__ == "__main__":
         print(f"Test set ELBO: {test_elbo}")
 
         n_images = 10
-        path = os.path.join("images", f"{epoch+1}.png")
+        out_dir = "images"
+        path = os.path.join(out_dir, f"{epoch+1}.png")
+        try:
+            os.mkdir(out_dir)
+        except FileExistsError:
+            pass  # Allow overwriting
         input_output_figure(data.test_images[:n_images], test_outputs[:n_images], path)
