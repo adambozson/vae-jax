@@ -6,13 +6,13 @@ import jax.numpy as np
 import tensorflow_datasets as tfds
 from jax import grad, jit, random, vmap
 
-from data import MNIST
-from nn_utils import init_network_params
+from utils.data import MNIST
+from utils.nn import init_network_params
 
 Array = np.ndarray
 
 
-def relu(x):
+def relu(x: Array) -> Array:
     return np.maximum(0, x)
 
 
